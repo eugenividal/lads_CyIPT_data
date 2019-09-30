@@ -1,58 +1,67 @@
 LADS OSM data
 ================
 Eugeni Vidal
-29/09/2019
-
-<!-- README.md is generated from README.Rmd. Please edit that file -->
+30/09/2019
 
 ## Introduction
-
+  
 This is the script to prepare the Open Street Map (OSM) data for the paper "Inequalities in cycling participation in England". Two potential indicators at the local authority level are created using this dataset: (1) km cycle-friendly infrastructure/km2, and (2) cyclability index.
 
 The first indicator can be divided into 3: km of cycle tracks/km2, km of cycle lanes/km2, and km of quiet streets/km2. The cyclability index is calculated giving different weight to each type of road in which cycling is allowed.
 
 ## Data preparation
 
-### Load OSM national dataset
+### Load OSM dataset for England
 
-``` r
+```{r}
 # Load data
 ## Load infras data
-  infras = readRDS("Data/ways_all.Rds")
-## Create length_m variable.
+infras = readRDS("Data/ways_all.Rds")
+## Create length_m variable
 infras$length_m = as.numeric(st_length(infras))
 ## Load lads data
 lads = sf::read_sf("https://opendata.arcgis.com/datasets/fab4feab211c4899b602ecfbfbc420a3_3.geojson")
 lads = read_sf("Local_Authority_Districts_December_2017_Generalised_Clipped_Boundaries_in_United_Kingdom_WGS84.geojson") %>% 
   st_transform(27700) # add geometry
 # plot(las$geometry) # ckeck visually
-lads = lads %>% filter(str_detect(lad17cd, "E")) # only England
+lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
 ```
 
-### Create cycle-friendly infrastructure categories
+### Extract cycle-friendly infrastructure per categories
 
-``` r
-# Create categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
-## Create cycleways highway dataset
+```{r}
+# Extract categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
+## Extract cycleways highway dataset
 i_cycleway = filter(infras, highway == "cycleway")
-## Create cycleways left or right dataset
+## Extract cycleways left or right dataset
 i_left_cycleway = filter(infras, cycleway.left!= "no" & highway !="cycleway")
 i_right_cycleway = filter(infras, cycleway.right!= "no" & highway !="cycleway") 
-## Create living streets dataset
+## Extract living streets dataset
 i_living_street = filter(infras, highway == "living_street" & cycleway.right == "no" & cycleway.left == "no")
-## Create Shared Path dataset
+## Extract Shared Path dataset
 i_shared_path = filter(infras, roadtype == "Shared Path" & cycleway.right == "no" & cycleway.left == "no")
-## Create 20mph zones dataset
+## Extract 20mph zones dataset
 i_20mph = filter(infras, (highway != "cycleway" & highway != "living_street" & roadtype != "Shared Path" & cycleway.left == "no" & cycleway.right == "no") &  maxspeed <= "20")
 ```
 
-### Create a cyclability variable
+### Create the cyclability index
 
-### Agregate per local autority districts (LADS)
+```{r, include = FALSE} 
+# Create the bikeability weights from dodgr package
+weighting_profiles = dodgr::weighting_profiles$weighting_profiles
+bike_profile = weighting_profiles %>%
+  filter(name == "bicycle") %>%
+  select(highway = way, value)
+#bike_profile
+## Join this file with the bikeability weights
+infras = left_join(infras, bike_profile)
+```
 
-``` r
+### Aggregate per local authority districts (LADs)
+
+```{r}
 # Aggregate infrastructure variables to lads
-lads$length_infras = aggregate(infras["length_m"], lads, FUN = sum)$length_m
+# lads$length_infras = aggregate(infras["length_m"], lads, FUN = sum)$length_m
 # Aggregate cycleways highway
 lads$length_cycleway = aggregate(i_cycleway["length_m"], lads, FUN = sum)$length_m
 ## Replace NA by 0
@@ -77,7 +86,31 @@ lads$length_20mph = aggregate(i_20mph["length_m"], lads, FUN = sum)$length_m
 lads$length_20mph[is.na(lads$length_20mph)] = 0
 ```
 
-``` r
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Create three general categories of cycle-friendly infrastructure
+## Cycle tracks - Roads dedicated to cyclists on separate right of way
+lads$length_cycle_tracks <- lads$length_cycleway + lads$length_shared_paths
+## Cycle lanes - Lanes marked on a portion of a carriageway designated for cyclist use
+lads$length_cycle_lanes <- lads$length_r_cycleway + lads$length_l_cycleway
+## Quiet streets - living streets or roads max speed <= 20 mph
+lads$length_quiet_streets <- lads$length_20mph + lads$length_living_streets
+```
+
+```{r message=FALSE, warning=FALSE, cache=FALSE, include=FALSE, paged.print=FALSE}
+# Create infrastructure indicators
+## Convert area m^2 to km^2
+lads$km2 <- lads$st_areashape/1000000
+## Cycling segregated infrastructure per area
+lads$cycle_tracks_km2 = (lads$length_cycle_tracks/1000)/(lads$km2)
+## Cycling non segregated infrastructure per area
+lads$cycle_lanes_km2 = (lads$length_cycle_lanes/1000)/(lads$km2)
+## Quiet streets per area
+lads$quiet_streets_km2 = (lads$length_quiet_streets/1000)/(lads$km2)
+## Total cycle-friendly infrastructure per area.
+lads$total_cycle_friendly_inf_km2 = ((lads$length_cycle_tracks + lads$length_cycle_lanes + lads$length_quiet_streets)/1000)/(lads$km2)
+```
+
+```{r}
 # Aggregate cyclability indicator
 lads$cyclability = aggregate(infras["value"], lads, na.rm = TRUE, FUN = mean)$value
 ```
