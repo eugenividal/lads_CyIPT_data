@@ -7,11 +7,9 @@ Eugeni Vidal
 
 ## Introduction
 
-This is a script to prepare the data from Open Streets Maps (OSM) for
-the paper “Inequalities in cycling participation in England”. Three
-potential variables could be collected from this dataset: (1) Type of
-infrastructure, (2) Volume of vehicles in infrastructure, (3) Quietness
-of infrastructure.
+This is the script to prepare the Open Street Map (OSM) data for the paper "Inequalities in cycling participation in England". Two potential indicators at the local authority level are created using this dataset: (1) km cycle-friendly infrastructure/km2, and (2) cyclability index.
+
+The first indicator can be divided into 3: km of cycle tracks/km2, km of cycle lanes/km2, and km of quiet streets/km2. The cyclability index is calculated giving different weight to each type of road in which cycling is allowed.
 
 ## Data preparation
 
@@ -128,7 +126,9 @@ tmap_mode(current.mode)
 
 ## Doubts and questions
 
-  - Data is very skewed to the left.
+- Is the aggregation of infrastructure per local authority districts correct? if so: (1) why did we tried to split the dataset in lads and used loops in the first script? (2) How does the aggregation works without a common column? I guess it uses the geometries? It looks like magic to me! 
+
+- Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index is normalised.
 
 <!-- end list -->
 
@@ -143,16 +143,8 @@ hist(lads$total_cycle_friendly_inf_km2)
 #hist(log(lads$total_cycle_friendly_inf_km2))
 ```
 
-This might be due to the fact that cycling infrastructure tend to be
-concentrated in urban areas, but also because collaborations in big
-cities are usually higher than in rural areas. Way to check this? The
-solution could be to analyse only urban areas.
+The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
 
-  - Should I get other variables from this dataset such as volume of
-    traffic and quietness. How to aggregate this data. Using the mean?
-
-  - Change view mode format maps and name of lads
-
-  - Why I cannot knit it?
-
-  - Create a github repository to share.
+The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
+  
+- Shall I consider other variables from the OSM dataset such as volume of traffic or quietness? 
