@@ -50,4 +50,4 @@ zones_leeds$length_cycleway = aggregate(infras_test["length_cycleway"], zones_le
 plot(zones_leeds["length_cycleway"])
 plot(infras_test %>% filter(highway == "cycleway"))
 ```
-
+  
