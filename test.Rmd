@@ -153,7 +153,7 @@ zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = T
 
 ```{r}
 # Aggregate cyclability indicator
-zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = TRUE, FUN = mean)$value
+zones_leeds$aadt = aggregate(infras_test["aadt"], zones_leeds, na.rm = TRUE, FUN = mean)$aadt
 ```
 
 ### Quietness
@@ -168,7 +168,9 @@ zones_leeds$quietness = aggregate(infras_test["quietness"], zones_leeds, na.rm =
 # saveRDS(zones_leeds, "Data/zones_leeds.Rds")
 ```
 
-## Maps
+## Visualisation variables
+
+### Maps
 
 ```{r}
 tmap_mode("view")
@@ -186,9 +188,9 @@ p2 <- tm_shape(zones_leeds) +
 
 ```{r}
 tmap_mode("view")
-# # Map volume of traffic
-# p3 <- tm_shape(zones_leeds) +
-#   tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+# Map volume of traffic
+p3 <- tm_shape(zones_leeds) +
+  tm_fill("aadt", title="Volume of traffic", palette="Oranges")
 ```
 
 ```{r}
@@ -200,11 +202,12 @@ p4 <- tm_shape(zones_leeds) +
 
 ```{r}
 current.mode <- tmap_mode("plot")
-tmap_arrange(p1, p2, p4)
+tmap_arrange(p1, p2, p3, p4)
 tmap_mode(current.mode) 
 ```
 
-## Doubts and questions
+
+### Data distribution
 
 - Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
 
@@ -225,3 +228,9 @@ hist(zones_leeds$quietness)
 The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
 
 The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
+
+# Things left to solve
+
+- Simplify code - add just three categories of infrastructure
+
+- Volume traffic variable, use function weighted.mean() to weight *aadt* per *dutch scenario*.
