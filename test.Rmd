@@ -35,12 +35,14 @@ library(tmap)
 ```
 
 ```{r}
+# Load infras in Leeds
 infras_test = readRDS("infras_test.Rds")
 
-## Filter only Leeds
-zones_wy <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
+# Load Leeds zones
+zones_leeds <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
 zones_leeds <- zones_wy %>% 
-  filter(lad_name == "Leeds")
+  filter(lad_name == "Leeds") %>% 
+  select(geometry)
 
 # test calculating length of cycleway in zones across leeds
 zones_leeds$length_all = aggregate(infras_test["length_m"], zones_leeds, FUN = sum)$length_m
@@ -50,4 +52,137 @@ zones_leeds$length_cycleway = aggregate(infras_test["length_cycleway"], zones_le
 plot(zones_leeds["length_cycleway"])
 plot(infras_test %>% filter(highway == "cycleway"))
 ```
+
+### Extract cycle-friendly infrastructure per categories
+
+```{r}
+# Extract categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
+## Extract cycleways highway dataset
+i_cycleway = filter(infras_test, highway == "cycleway")
+## Extract cycleways left or right dataset
+i_left_cycleway = filter(infras_test, cycleway.left!= "no" & highway !="cycleway")
+i_right_cycleway = filter(infras_test, cycleway.right!= "no" & highway !="cycleway") 
+## Extract living streets dataset
+i_living_street = filter(infras_test, highway == "living_street" & cycleway.right == "no" & cycleway.left == "no")
+## Extract Shared Path dataset
+i_shared_path = filter(infras_test, roadtype == "Shared Path" & cycleway.right == "no" & cycleway.left == "no")
+## Extract 20mph zones dataset
+i_20mph = filter(infras_test, (highway != "cycleway" & highway != "living_street" & roadtype != "Shared Path" & cycleway.left == "no" & cycleway.right == "no") &  maxspeed <= "20")
+```
+
+### Create the cyclability index
+
+```{r, include = FALSE} 
+# Create the bikeability weights from dodgr package
+weighting_profiles = dodgr::weighting_profiles$weighting_profiles
+bike_profile = weighting_profiles %>%
+  filter(name == "bicycle") %>%
+  select(highway = way, value)
+#bike_profile
+## Join this file with the bikeability weights
+infras_test = left_join(infras_test, bike_profile)
+```
+
+### Aggregate per local authority districts (LADs)
+
+```{r}
+# Aggregate infrastructure variables to lads
+# lads$length_infras = aggregate(infras["length_m"], lads, FUN = sum)$length_m
+# Aggregate cycleways highway
+zones_leeds$length_cycleway = aggregate(i_cycleway["length_m"], zones_leeds, FUN = sum)$length_m
+## Replace NA by 0
+zones_leeds$length_cycleway[is.na(zones_leeds$length_cycleway)] = 0
+# Aggregate cycleways left or right
+zones_leeds$length_r_cycleway = aggregate(i_right_cycleway["length_m"], zones_leeds, FUN = sum)$length_m
+zones_leeds$length_l_cycleway = aggregate(i_left_cycleway["length_m"], zones_leeds, FUN = sum)$length_m
+## Replace NA by 0
+zones_leeds$length_r_cycleway[is.na(zones_leeds$length_r_cycleway)] = 0
+zones_leeds$length_l_cycleway[is.na(zones_leeds$length_l_cycleway)] = 0
+# Aggregate length living streets
+zones_leeds$length_living_streets = aggregate(i_living_street["length_m"], zones_leeds, FUN = sum)$length_m
+## Replace NA by 0
+zones_leeds$length_living_streets[is.na(zones_leeds$length_living_streets)] = 0
+# Aggregate shared paths
+zones_leeds$length_shared_paths = aggregate(i_shared_path["length_m"], zones_leeds, FUN = sum)$length_m
+## Replace NA by 0
+zones_leeds$length_shared_paths[is.na(zones_leeds$length_shared_paths)] = 0
+# Aggregate length 20mph
+zones_leeds$length_20mph = aggregate(i_20mph["length_m"], zones_leeds, FUN = sum)$length_m
+## Replace NA by 0
+zones_leeds$length_20mph[is.na(zones_leeds$length_20mph)] = 0
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Create three general categories of cycle-friendly infrastructure
+## Cycle tracks - Roads dedicated to cyclists on separate right of way
+zones_leeds$length_cycle_tracks <- zones_leeds$length_cycleway + zones_leeds$length_shared_paths
+## Cycle lanes - Lanes marked on a portion of a carriageway designated for cyclist use
+zones_leeds$length_cycle_lanes <- zones_leeds$length_r_cycleway + zones_leeds$length_l_cycleway
+## Quiet streets - living streets or roads max speed <= 20 mph
+zones_leeds$length_quiet_streets <- zones_leeds$length_20mph + zones_leeds$length_living_streets
+```
+
+```{r message=FALSE, warning=FALSE, cache=FALSE, include=FALSE, paged.print=FALSE}
+# Create infrastructure indicators
+## Convert area m^2 to km^2
+zones_leeds$km2 <- zones_leeds$st_areashape/1000000
+## Cycling segregated infrastructure per area
+zones_leeds$cycle_tracks_km2 = (zones_leeds$length_cycle_tracks/1000)/(zones_leeds$km2)
+## Cycling non segregated infrastructure per area
+zones_leeds$cycle_lanes_km2 = (zones_leeds$length_cycle_lanes/1000)/(zones_leeds$km2)
+## Quiet streets per area
+zones_leeds$quiet_streets_km2 = (zones_leeds$length_quiet_streets/1000)/(zones_leeds$km2)
+## Total cycle-friendly infrastructure per area.
+zones_leeds$total_cycle_friendly_inf_km2 = ((zones_leeds$length_cycle_tracks + zones_leeds$length_cycle_lanes + zones_leeds$length_quiet_streets)/1000)/(zones_leeds$km2)
+```
+
+```{r}
+# Aggregate cyclability indicator
+zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = TRUE, FUN = mean)$value
+```
+
+## Maps
+
+```{r}
+tmap_mode("view")
+# Map km cycle friendly infras/km^2
+p1 <- tm_shape(zones_leeds) +
+  tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+```
+
+```{r}
+tmap_mode("view")
+# Map index of cycleability
+p2 <- tm_shape(zones_leeds) +
+  tm_fill("cyclability", title="Cycleability index", palette="Greens")
+```
+
+```{r}
+current.mode <- tmap_mode("plot")
+tmap_arrange(p1, p2)
+tmap_mode(current.mode) 
+```
+
+## Doubts and questions
+
+- Is the aggregation of infrastructure per local authority districts correct? if so: (1) why did we tried to split the dataset in lads and used loops in the first script? (2) How does the aggregation works without a common column? I guess it uses the geometries? It looks like magic to me. 
+
+- Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
+
+```{r}
+# Infrastructure data very skezed to the left. 
+hist(zones_leeds$total_cycle_friendly_inf_km2)
+#hist(log(lads$total_cycle_friendly_inf_km2))
+```
+
+```{r}
+hist(zones_leeds$cyclability)
+```
+
+The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
+
+The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
   
+- Shall I consider other variables from the OSM dataset such as volume of traffic or quietness? 
+
+
