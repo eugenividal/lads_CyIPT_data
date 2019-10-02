@@ -14,31 +14,33 @@ library(tmap)
 ```
 
 ```{r, eval=FALSE}
-# Load data - once, so don't re run multiple times
-## Load infras data
-infras = readRDS("Data/ways_all.Rds")
-
-infras$length_m = as.numeric(st_length(infras))
-## Load lads data
-lads = sf::read_sf("https://opendata.arcgis.com/datasets/fab4feab211c4899b602ecfbfbc420a3_3.geojson")
-lads = read_sf("Local_Authority_Districts_December_2017_Generalised_Clipped_Boundaries_in_United_Kingdom_WGS84.geojson") %>% 
-  st_transform(27700) # add geometry
-# plot(las$geometry) # ckeck visually
-lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
-
-Leeds <- lads %>% 
-  filter(lad17nm=="Leeds")
-infras_test <- infras[Leeds, ]
-
-# save test data - don't rerun
-saveRDS(infras_test, "infras_test.Rds")
+# # Load data - once, so don't re run multiple times
+# ## Load infras data
+# infras = readRDS("Data/ways_all.Rds")
+# 
+# infras$length_m = as.numeric(st_length(infras))
+# ## Load lads data
+# lads = sf::read_sf("https://opendata.arcgis.com/datasets/fab4feab211c4899b602ecfbfbc420a3_3.geojson")
+# lads = read_sf("Local_Authority_Districts_December_2017_Generalised_Clipped_Boundaries_in_United_Kingdom_WGS84.geojson") %>% 
+#   st_transform(27700) # add geometry
+# # plot(las$geometry) # ckeck visually
+# lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
+# 
+# Leeds <- lads %>% 
+#   filter(lad17nm=="Leeds")
+# infras_test <- infras[Leeds, ]
+# 
+# # save test data - don't rerun
+# saveRDS(infras_test, "infras_test.Rds")
 ```
-
 
 ```{r}
 infras_test = readRDS("infras_test.Rds")
+
 ## Filter only Leeds
-zones_leeds <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
+zones_wy <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
+zones_leeds <- zones_wy %>% 
+  filter(lad_name == "Leeds")
 
 # test calculating length of cycleway in zones across leeds
 zones_leeds$length_all = aggregate(infras_test["length_m"], zones_leeds, FUN = sum)$length_m
