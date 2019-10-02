@@ -49,7 +49,7 @@ infras_test = readRDS("Data/infras_test.Rds")
 
 # Load Leeds zones
 zones_leeds <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
-zones_leeds <- zones_wy %>% 
+zones_leeds <- zones_leeds %>% 
   filter(lad_name == "Leeds") %>% 
   select(geometry)
 zones_leeds$st_areashape <- st_area(zones_leeds) # add area
@@ -151,9 +151,17 @@ zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = T
 
 ### Volume of traffic
 
+```{r}
+# Aggregate cyclability indicator
+zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = TRUE, FUN = mean)$value
+```
+
 ### Quietness
 
-
+```{r}
+# Aggregate cyclability indicator
+zones_leeds$quietness = aggregate(infras_test["quietness"], zones_leeds, na.rm = TRUE, FUN = mean)$quietness
+```
 
 ```{r}
 # # save test data
@@ -178,27 +186,25 @@ p2 <- tm_shape(zones_leeds) +
 
 ```{r}
 tmap_mode("view")
-# Map volume of traffic
-p1 <- tm_shape(zones_leeds) +
-  tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+# # Map volume of traffic
+# p3 <- tm_shape(zones_leeds) +
+#   tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
 ```
 
 ```{r}
 tmap_mode("view")
 # Map quietness
-p1 <- tm_shape(zones_leeds) +
-  tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+p4 <- tm_shape(zones_leeds) +
+  tm_fill("quietness", title="Quietness (%)", palette="Reds")
 ```
 
 ```{r}
 current.mode <- tmap_mode("plot")
-tmap_arrange(p1, p2, p3, p4)
+tmap_arrange(p1, p2, p4)
 tmap_mode(current.mode) 
 ```
 
 ## Doubts and questions
-
-- Is the aggregation of infrastructure per local authority districts correct? if so: (1) why did we tried to split the dataset in lads and used loops in the first script? (2) How does the aggregation works without a common column? I guess it uses the geometries? It looks like magic to me. 
 
 - Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
 
@@ -212,10 +218,10 @@ hist(zones_leeds$total_cycle_friendly_inf_km2)
 hist(zones_leeds$cyclability)
 ```
 
+```{r}
+hist(zones_leeds$quietness)
+```
+
 The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
 
 The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
-  
-- Shall I consider other variables from the OSM dataset such as volume of traffic or quietness? 
-
-
