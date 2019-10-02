@@ -1,4 +1,4 @@
----
+  ---
 title: "LADS OSM data"
 author: "Eugeni Vidal"
 date: "30/09/2019"
@@ -172,6 +172,6 @@ hist(lads$cyclability)
 
 The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
 
-The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
+The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable. 
   
 - Shall I consider other variables from the OSM dataset such as volume of traffic or quietness? 

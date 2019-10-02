@@ -1,5 +1,5 @@
 ---
-title: "test"
+title: "Test file"
 author: "Eugeni Vidal"
 date: "01/10/2019"
 output: html_document
@@ -13,36 +13,46 @@ library(tidyverse)
 library(tmap)
 ```
 
+## Introduction
+  
+This is the script to prepare the **CyIPT** data for the paper "Inequalities in cycling participation in England". Four potential indicators at the local authority level are created using this dataset: 
+
+(1) km cycle-friendly infrastructure/km2, 
+(2) cyclability index, 
+(3) average volume of traffic/cycling flow, and 
+(4) Quietness.
+
+The first indicator can be divided into 3: km of cycle tracks/km2, km of cycle lanes/km2, and km of quiet streets/km2. The cyclability index is calculated giving different weight to each type of road in which cycling is allowed. The average volume of traffic is weighted by the flow of cyclists are expected in a future escenario. Quietness is a measure calculated by the cycle street project https://www.cyclestreets.net/help/journey/howitworks/.
+
+## Data preparation
+
+### Load CyIPT and lads dataset for England
+
 ```{r, eval=FALSE}
-# # Load data - once, so don't re run multiple times
+# # Load the data - once, so don't re run multiple times. To create the original file replace infras_test and zones_leeds by infras and lads repsectively.
+#
 # ## Load infras data
 # infras = readRDS("Data/ways_all.Rds")
 # 
-# infras$length_m = as.numeric(st_length(infras))
-# ## Load lads data
-# lads = sf::read_sf("https://opendata.arcgis.com/datasets/fab4feab211c4899b602ecfbfbc420a3_3.geojson")
-# lads = read_sf("Local_Authority_Districts_December_2017_Generalised_Clipped_Boundaries_in_United_Kingdom_WGS84.geojson") %>% 
-#   st_transform(27700) # add geometry
-# # plot(las$geometry) # ckeck visually
-# lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
-# 
-# Leeds <- lads %>% 
+# ## Filter only leeds
+# Leeds <- lads %>%
 #   filter(lad17nm=="Leeds")
 # infras_test <- infras[Leeds, ]
 # 
 # # save test data - don't rerun
-# saveRDS(infras_test, "infras_test.Rds")
+# saveRDS(infras_test, "Data/infras_test.Rds")
 ```
 
 ```{r}
-# Load infras in Leeds
-infras_test = readRDS("infras_test.Rds")
+# Load infras test
+infras_test = readRDS("Data/infras_test.Rds")
 
 # Load Leeds zones
 zones_leeds <- pct::get_pct_zones(region = "west-yorkshire") %>% st_transform(27700)
 zones_leeds <- zones_wy %>% 
   filter(lad_name == "Leeds") %>% 
   select(geometry)
+zones_leeds$st_areashape <- st_area(zones_leeds) # add area
 
 # test calculating length of cycleway in zones across leeds
 zones_leeds$length_all = aggregate(infras_test["length_m"], zones_leeds, FUN = sum)$length_m
@@ -53,7 +63,7 @@ plot(zones_leeds["length_cycleway"])
 plot(infras_test %>% filter(highway == "cycleway"))
 ```
 
-### Extract cycle-friendly infrastructure per categories
+### Infrastructure per lad
 
 ```{r}
 # Extract categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
@@ -69,21 +79,6 @@ i_shared_path = filter(infras_test, roadtype == "Shared Path" & cycleway.right =
 ## Extract 20mph zones dataset
 i_20mph = filter(infras_test, (highway != "cycleway" & highway != "living_street" & roadtype != "Shared Path" & cycleway.left == "no" & cycleway.right == "no") &  maxspeed <= "20")
 ```
-
-### Create the cyclability index
-
-```{r, include = FALSE} 
-# Create the bikeability weights from dodgr package
-weighting_profiles = dodgr::weighting_profiles$weighting_profiles
-bike_profile = weighting_profiles %>%
-  filter(name == "bicycle") %>%
-  select(highway = way, value)
-#bike_profile
-## Join this file with the bikeability weights
-infras_test = left_join(infras_test, bike_profile)
-```
-
-### Aggregate per local authority districts (LADs)
 
 ```{r}
 # Aggregate infrastructure variables to lads
@@ -136,9 +131,33 @@ zones_leeds$quiet_streets_km2 = (zones_leeds$length_quiet_streets/1000)/(zones_l
 zones_leeds$total_cycle_friendly_inf_km2 = ((zones_leeds$length_cycle_tracks + zones_leeds$length_cycle_lanes + zones_leeds$length_quiet_streets)/1000)/(zones_leeds$km2)
 ```
 
+### Cyclability
+
+```{r, include = FALSE} 
+# Create the bikeability weights from dodgr package
+weighting_profiles = dodgr::weighting_profiles$weighting_profiles
+bike_profile = weighting_profiles %>%
+  filter(name == "bicycle") %>%
+  select(highway = way, value)
+#bike_profile
+## Join this file with the bikeability weights
+infras_test = left_join(infras_test, bike_profile)
+```
+
 ```{r}
 # Aggregate cyclability indicator
 zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = TRUE, FUN = mean)$value
+```
+
+### Volume of traffic
+
+### Quietness
+
+
+
+```{r}
+# # save test data
+# saveRDS(zones_leeds, "Data/zones_leeds.Rds")
 ```
 
 ## Maps
@@ -158,8 +177,22 @@ p2 <- tm_shape(zones_leeds) +
 ```
 
 ```{r}
+tmap_mode("view")
+# Map volume of traffic
+p1 <- tm_shape(zones_leeds) +
+  tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+```
+
+```{r}
+tmap_mode("view")
+# Map quietness
+p1 <- tm_shape(zones_leeds) +
+  tm_fill("total_cycle_friendly_inf_km2", title="km cycle friendly infras/km2", breaks=c(seq(0, 10, by=2.5), Inf), palette="Blues")
+```
+
+```{r}
 current.mode <- tmap_mode("plot")
-tmap_arrange(p1, p2)
+tmap_arrange(p1, p2, p3, p4)
 tmap_mode(current.mode) 
 ```
 
