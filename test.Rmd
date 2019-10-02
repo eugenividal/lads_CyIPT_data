@@ -152,8 +152,9 @@ zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = T
 ### Volume of traffic
 
 ```{r}
+infras_test$volume = infras_test$aadt * infras_test$pct.census
 # Aggregate cyclability indicator
-zones_leeds$aadt = aggregate(infras_test["aadt"], zones_leeds, na.rm = TRUE, FUN = mean)$aadt
+zones_leeds$volume = aggregate(infras_test["volume"], zones_leeds, na.rm = TRUE, FUN = mean)$volume
 ```
 
 ### Quietness
@@ -164,8 +165,8 @@ zones_leeds$quietness = aggregate(infras_test["quietness"], zones_leeds, na.rm =
 ```
 
 ```{r}
-# # save test data
-# saveRDS(zones_leeds, "Data/zones_leeds.Rds")
+# save test data
+saveRDS(zones_leeds, "Data/zones_leeds.Rds")
 ```
 
 ## Visualisation variables
@@ -190,7 +191,7 @@ p2 <- tm_shape(zones_leeds) +
 tmap_mode("view")
 # Map volume of traffic
 p3 <- tm_shape(zones_leeds) +
-  tm_fill("aadt", title="Volume of traffic", palette="Oranges")
+  tm_fill("volume", title="Volume of traffic", palette="Oranges")
 ```
 
 ```{r}
@@ -206,7 +207,6 @@ tmap_arrange(p1, p2, p3, p4)
 tmap_mode(current.mode) 
 ```
 
-
 ### Data distribution
 
 - Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
@@ -219,6 +219,10 @@ hist(zones_leeds$total_cycle_friendly_inf_km2)
 
 ```{r}
 hist(zones_leeds$cyclability)
+```
+
+```{r}
+hist(zones_leeds$volume)
 ```
 
 ```{r}
