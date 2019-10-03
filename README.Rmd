@@ -3,7 +3,10 @@ title: "Test file"
 author: "Eugeni Vidal"
 date: "01/10/2019"
 output:
-  github_document
+  html_document:
+    df_print: paged
+  github_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -50,7 +53,7 @@ lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
 ## Extract cycleways highway dataset
 i_cycle_tracks = filter(infras, highway == "cycleway") 
 ## Extract cycleways left or right dataset
-i_cycle_lanes = filter(infras, (cycleway.left != "no" | cycleway.right != "no")& highway != "cycleway")
+i_cycle_lanes = filter(infras, (cycleway.left != "no" | cycleway.right != "no") & highway != "cycleway")
 ```
 
 ```{r}
