@@ -17,9 +17,9 @@ library(tmap)
   
 This is the script to prepare the **CyIPT** data for the paper "Inequalities in cycling participation in England". Four potential indicators at the local authority level are created using this dataset: 
 
-(1) km cycle-friendly infrastructure/km2, 
-(2) cyclability index, 
-(3) average volume of traffic/cycling flow, and 
+(1) Km cycle-friendly infrastructure/km2, 
+(2) Cyclability index, 
+(3) Average volume traffic, and 
 (4) Quietness.
 
 The first indicator can be divided into 3: km of cycle tracks/km2, km of cycle lanes/km2, and km of quiet streets/km2. The cyclability index is calculated giving different weight to each type of road in which cycling is allowed. The average volume of traffic is weighted by the flow of cyclists are expected in a future escenario. Quietness is a measure calculated by the cycle street project https://www.cyclestreets.net/help/journey/howitworks/.
@@ -145,6 +145,7 @@ infras_test = left_join(infras_test, bike_profile)
 ```
 
 ```{r}
+# Shouldn't I calculate this indicator by lenght?
 # Aggregate cyclability indicator
 zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = TRUE, FUN = mean)$value
 ```
@@ -152,14 +153,17 @@ zones_leeds$cyclability = aggregate(infras_test["value"], zones_leeds, na.rm = T
 ### Volume of traffic
 
 ```{r}
-infras_test$volume = infras_test$aadt * infras_test$pct.census
-# Aggregate cyclability indicator
-zones_leeds$volume = aggregate(infras_test["volume"], zones_leeds, na.rm = TRUE, FUN = mean)$volume
+# Create a weighted volume column by cycling flow
+infras_test$volume_w = infras_test$aadt * infras_test$pct.census
+# Aggregate volume_w indicator
+zones_leeds$volume_w = aggregate(infras_test["volume_w"], zones_leeds, na.rm = TRUE, FUN = mean)$volume_w
 ```
 
 ### Quietness
 
 ```{r}
+# Sholdn't I calculate quietness by lenght?
+
 # Aggregate cyclability indicator
 zones_leeds$quietness = aggregate(infras_test["quietness"], zones_leeds, na.rm = TRUE, FUN = mean)$quietness
 ```
