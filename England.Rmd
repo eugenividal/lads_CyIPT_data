@@ -1,0 +1,198 @@
+---
+title: "Test file"
+author: "Eugeni Vidal"
+date: "01/10/2019"
+output:
+  github_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Load libraries
+library(sf)
+library(tidyverse)
+library(tmap)
+```
+
+## Introduction
+  
+This is the script to prepare the **CyIPT** data for the paper "Inequalities in cycling participation in England". Four potential indicators at the local authority level are created using this dataset: 
+
+(1) Km cycle-friendly infrastructure/km2, 
+(2) Cyclability index, 
+(3) Average volume traffic, and 
+(4) Quietness.
+
+The first indicator can be divided into 3: km of cycle tracks/km2, km of cycle lanes/km2, and km of quiet streets/km2. The cyclability index is calculated giving different weight to each type of road in which cycling is allowed. The average volume of traffic is weighted by the flow of cyclists are expected in a future escenario. Quietness is a measure calculated by the cycle street project https://www.cyclestreets.net/help/journey/howitworks/.
+
+## Data preparation
+
+### Load CyIPT and lads dataset for England
+
+```{r, eval=FALSE}
+# Load data
+## Load infras data
+infras = readRDS("Data/ways_all.Rds")
+## Create length_m variable
+infras$length_m = as.numeric(st_length(infras))
+## Load lads data
+lads = sf::read_sf("https://opendata.arcgis.com/datasets/fab4feab211c4899b602ecfbfbc420a3_3.geojson")
+lads = read_sf("Local_Authority_Districts_December_2017_Generalised_Clipped_Boundaries_in_United_Kingdom_WGS84.geojson") %>% 
+  st_transform(27700) # add geometry
+# plot(las$geometry) # ckeck visually
+lads = lads %>% filter(str_detect(lad17cd, "E")) # select only England
+```
+
+### Infrastructure per lad
+
+```{r}
+# Extract categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
+## Extract cycleways highway dataset
+i_cycle_tracks = filter(infras, highway == "cycleway") 
+## Extract cycleways left or right dataset
+i_cycle_lanes = filter(infras, (cycleway.left != "no" | cycleway.right != "no") & highway != "cycleway")
+```
+
+```{r}
+# Aggregate infrastructure variables to lads
+# lads$length_infras = aggregate(infras["length_m"], lads, FUN = sum)$length_m
+# Aggregate cycleways highway
+lads$length_cycle_tracks = aggregate(i_cycle_tracks["length_m"], lads, FUN = sum)$length_m
+## Replace NA by 0
+lads$length_cycle_tracks[is.na(lads$length_cycle_tracks)] = 0
+# Aggregate cycleways left or right
+lads$length_cycle_lanes = aggregate(i_cycle_lanes["length_m"], lads, FUN = sum)$length_m
+## Replace NA by 0
+lads$length_cycle_lanes[is.na(lads$length_cycle_lanes)] = 0
+```
+
+```{r message=FALSE, warning=FALSE, cache=FALSE, include=FALSE, paged.print=FALSE}
+# Create infrastructure indicators
+## Perhaps I should create the indicator calculating the proportion of network which is cyclist
+## Convert area m^2 to km^2
+lads$km2 <- lads$st_areashape/1000000
+## Cycling segregated infrastructure per area
+lads$cycle_tracks_km2 = (lads$length_cycle_tracks/1000)/(lads$km2)
+## Cycling non segregated infrastructure per area
+lads$cycle_lanes_km2 = (lads$length_cycle_lanes/1000)/(lads$km2)
+## Total cycle-friendly infrastructure per area.
+lads$total_cycle_inf_km2 = ((lads$length_cycle_tracks + lads$length_cycle_lanes)/1000)/(lads$km2)
+```
+
+### Cyclability
+
+```{r, include = FALSE} 
+# Create the bikeability weights from dodgr package
+weighting_profiles = dodgr::weighting_profiles$weighting_profiles
+bike_profile = weighting_profiles %>%
+  filter(name == "bicycle") %>%
+  select(highway = way, value)
+#bike_profile
+## Join this file with the bikeability weights
+infras = left_join(infras, bike_profile)
+```
+
+```{r}
+# Shouldn't I calculate this indicator by lenght?
+# Aggregate cyclability indicator
+lads$cyclability = aggregate(infras["value"], lads, na.rm = TRUE, FUN = mean)$value
+```
+
+### Volume of traffic
+
+```{r}
+# Create a weighted volume column by cycling flow
+## Shold I use the function weighted.mean() or multiply by dutch scenario as Robin suggested?
+infras$volume_w = infras$aadt * infras$pct.census
+# Aggregate volume_w indicator
+lads$volume_w = aggregate(infras["volume_w"], lads, na.rm = TRUE, FUN = mean)$volume_w
+```
+
+### Quietness
+
+```{r}
+# Sholdn't I calculate quietness by lenght?
+
+# Aggregate cyclability indicator
+lads$quietness = aggregate(infras["quietness"], lads, na.rm = TRUE, FUN = mean)$quietness
+```
+
+```{r}
+# save test data
+saveRDS(lads, "Data/lads.Rds")
+```
+
+## Visualisation variables
+
+### Maps
+
+```{r}
+tmap_mode("view")
+# Map km cycle friendly infras/km^2
+p1 <- tm_shape(lads) +
+  tm_fill("total_cycle_inf_km2", title="km cycle infras/km2", breaks=c(seq(0, 2, by=0.25), Inf), palette="Blues")
+```
+
+```{r}
+tmap_mode("view")
+# Map index of cycleability
+p2 <- tm_shape(lads) +
+  tm_fill("cyclability", title="Cycleability index", palette="Greens")
+```
+
+```{r}
+tmap_mode("view")
+# Map volume of traffic
+p3 <- tm_shape(lads) +
+  tm_fill("volume_w", title="Volume of traffic", palette="Oranges")
+```
+
+```{r}
+tmap_mode("view")
+# Map quietness
+p4 <- tm_shape(lads) +
+  tm_fill("quietness", title="Quietness (%)", palette="Reds")
+```
+
+```{r}
+current.mode <- tmap_mode("plot")
+tmap_arrange(p1, p2, p3, p4)
+tmap_mode(current.mode) 
+```
+
+### Data distribution
+
+- Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
+
+```{r}
+# Infrastructure data very skezed to the left. 
+hist(lads$total_cycle_inf_km2)
+#hist(log(lads$total_cycle_friendly_inf_km2))
+```
+
+```{r}
+hist(lads$cyclability)
+```
+
+```{r}
+hist(lads$volume_w)
+```
+
+```{r}
+hist(lads$quietness)
+```
+
+The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
+
+The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
+
+## Questions
+
+- Infrastrucutre indicator, Should I add quiet streets? Shold I calculate the proportion of cycling network comparing cars intead of bike infras km2?
+
+- How to calculate the quietness and cycleability by length?
+
+- Is ok the way I calculated the volume weighted variable? 
