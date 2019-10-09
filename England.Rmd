@@ -122,7 +122,7 @@ lads$quietness = aggregate(infras["quietness"], lads, na.rm = TRUE, FUN = mean)$
 
 ```{r}
 # save test data
-saveRDS(lads, "Data/lads.Rds")
+saveRDS(lads, "Data/infras_lads.Rds")
 ```
 
 ## Visualisation variables
