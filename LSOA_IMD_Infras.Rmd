@@ -1,0 +1,187 @@
+---
+title: "Join_LSOA_IMD_Infras"
+author: "Eugeni Vidal"
+date: "03/10/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Load libraries
+library(sf)
+library(tidyverse)
+library(tmap)
+```
+
+```{r, eval=FALSE}
+# Load data
+## Load infras data
+infras = readRDS("Data/ways_all.Rds")
+## Create length_m variable
+infras$length_m = as.numeric(st_length(infras))
+```
+
+```{r setup, include=FALSE}
+# Get IMD data
+knitr::opts_chunk$set(message = TRUE)
+u <- "https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/467774/File_7_ID_2015_All_ranks__deciles_and_scores_for_the_Indices_of_Deprivation__and_population_denominators.csv"
+d <- readr::read_csv(u)
+names(d) <- snakecase::to_snake_case(names(d))
+names(d)[1] <- "geo_code"
+
+# Pct package download
+z <- pct::get_pct(layer = "z", geography = "lsoa", national = TRUE)
+
+# Join datasets
+zm <- dplyr::inner_join(z, d)
+
+## Load zm data
+zm <- zm %>% 
+  st_transform(27700) # add geometry
+# plot(las$geometry) # ckeck visually
+# zm = zm %>% filter(str_detect(lad17cd, "E")) # select only England
+```
+
+```{r}
+# Drop variables not interesting
+names(zm)
+zm <- zm[,c(1:6,128:129,135,186)]
+colnames(zm)[7] <- "imd_decile"
+```
+
+# Aggregate lsoa per IMD and add slope and perc_cyc
+
+```{r}
+# Aggregate per IMD
+lads_imd <- zm %>% 
+  group_by(lad11cd, imd_decile) %>% 
+  summarise(av_slope = mean(avslope_perc_u10km), perc_cyc = sum(bicycle)/sum(all))
+```
+
+### Infrastructure per lad
+
+```{r}
+### Infrastructure per lsoa
+# Extract categories of infrastructure datasets based on https://wiki.openstreetmap.org/wiki/Bicycle#cite_note-anyroad-1. 
+## Extract cycleways highway dataset
+i_cycle_tracks = filter(infras, highway == "cycleway") 
+## Extract cycleways left or right dataset
+i_cycle_lanes = filter(infras, (cycleway.left != "no" | cycleway.right != "no") & highway != "cycleway")
+```
+
+```{r}
+# Aggregate infrastructure variables to zm
+# lads_imd$length_infras = aggregate(infras["length_m"], lads_imd, FUN = sum)$length_m
+# Aggregate cycleways highway
+lads_imd$length_cycle_tracks = aggregate(i_cycle_tracks["length_m"], lads_imd, FUN = sum)$length_m
+## Replace NA by 0
+lads_imd$length_cycle_tracks[is.na(lads_imd$length_cycle_tracks)] = 0
+# Aggregate cycleways left or right
+lads_imd$length_cycle_lanes = aggregate(i_cycle_lanes["length_m"], lads_imd, FUN = sum)$length_m
+## Replace NA by 0
+lads_imd$length_cycle_lanes[is.na(lads_imd$length_cycle_lanes)] = 0
+```
+
+```{r message=FALSE, warning=FALSE, cache=FALSE, include=FALSE, paged.print=FALSE}
+# Create infrastructure indicators
+lads_imd$area <- st_area(lads_imd)
+## Convert area m^2 to km^2
+lads_imd$km2 <- lads_imd$area/1000000
+## Cycling segregated infrastructure per area
+lads_imd$cycle_tracks_km2 = (lads_imd$length_cycle_tracks/1000)/(lads_imd$km2)
+## Cycling non segregated infrastructure per area
+lads_imd$cycle_lanes_km2 = (lads_imd$length_cycle_lanes/1000)/(lads_imd$km2)
+## Total cycle-friendly infrastructure per area.
+lads_imd$total_cycle_inf_km2 = ((lads_imd$length_cycle_tracks + lads_imd$length_cycle_lanes)/1000)/(lads_imd$km2)
+```
+
+### Cyclability
+
+```{r, include = FALSE} 
+# Create the bikeability weights from dodgr package
+weighting_profiles = dodgr::weighting_profiles$weighting_profiles
+bike_profile = weighting_profiles %>%
+  filter(name == "bicycle") %>%
+  select(highway = way, value)
+#bike_profile
+## Join this file with the bikeability weights
+infras = left_join(infras, bike_profile)
+```
+
+```{r}
+# Shouldn't I calculate this indicator by lenght?
+# Aggregate cyclability indicator
+lads_imd$cyclability = aggregate(infras["value"], lads_imd, na.rm = TRUE, FUN = mean)$value
+```
+
+### Volume of traffic
+
+```{r}
+# Create a weighted volume column by cycling flow
+## Shold I use the function weighted.mean() or multiply by dutch scenario as Robin suggested?
+infras$volume_w = infras$aadt * infras$pct.census
+# Aggregate volume_w indicator
+lads_imd$volume_w = aggregate(infras["volume_w"], lads_imd, na.rm = TRUE, FUN = mean)$volume_w
+```
+
+### Quietness
+
+```{r}
+# Sholdn't I calculate quietness by lenght?
+
+# Aggregate cyclability indicator
+lads_imd$quietness = aggregate(infras["quietness"], lads_imd, na.rm = TRUE, FUN = mean)$quietness
+```
+
+```{r}
+# save test data
+saveRDS(lads_imd, "Data/dirty_env_lsoa.Rds")
+```
+
+```{r}
+lads_imd <- readRDS("Data/dirty_env_lsoa.Rds")
+```
+
+```{r}
+names(lads_imd)
+lads_imd <- lads_imd[,c(1:4,128:129,135,186:196)]
+```
+
+```{r}
+# save test data
+saveRDS(lads_imd, "Data/env_lsoa.Rds")
+```
+
+```{r}
+# Aggregate per IMD
+lads_imd <- lads_imd %>% 
+  group_by(lad11cd, index_of_multiple_deprivation_imd_decile_where_1_is_most_deprived_10_of_lso_as) %>% 
+  summarise(length_cycle_tracks = sum(length_cycle_tracks), length_cycle_lanes = sum(length_cycle_lanes), av_slope = mean(avslope_perc_u10km))
+```
+
+
+### Data distribution
+
+- Data visualisation. The total_cycle_friendly_inf_km2 data is very skewed to the left. However, the cyclability index looks normalised. 
+
+```{r}
+# Infrastructure data very skezed to the left. 
+hist(lads_imd$total_cycle_inf_km2)
+#hist(log(lads_imd$total_cycle_friendly_inf_km2))
+```
+
+```{r}
+hist(lads_imd$cyclability)
+```
+
+```{r}
+hist(lads_imd$volume_w)
+```
+
+```{r}
+hist(lads_imd$quietness)
+```
+
+The skeweness of the first indicator is because cycling infrastructure is very low and tend to be concentrated in urban areas. But it might be also because OSM collaborations are higher in urban than in rural areas. How can we check this? One solution could be to analyse only specific urban areas - those in where the level of contributions is enough to make the data reliable.
+
+The cyclability index data is normalised because it takes into account all types of infrastructure, not only cycle-friendly infrastructure. It looks much more reliable.
